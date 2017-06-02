@@ -3,6 +3,7 @@ package fpe
 import (
 	"crypto/cipher"
 	"encoding/binary"
+	"errors"
 	"math"
 	"math/big"
 	"strconv"
@@ -35,7 +36,20 @@ func NewFF1(cipher cipher.Block, radix, minMessageLength, maxMessageLength, maxT
 		maxTweakLength:   maxTweakLength}
 }
 
-func (ff1 *FF1) setup(message string, tweak []byte) {
+func (ff1 *FF1) setup(message string, tweak []byte) error {
+	if len(message) <= 0 {
+		return errors.New("Message length was not non-zero.")
+	}
+	if len(message) < ff1.minMessageLength {
+		return errors.New("Message length was less than the minimum allowable length.")
+	}
+	if len(message) > ff1.maxMessageLength {
+		return errors.New("Message length was greater than the maximum allowable length.")
+	}
+	if len(tweak) > ff1.maxTweakLength {
+		return errors.New("Tweak length was greater than the maximum allowable length.")
+	}
+
 	ff1.messageLength = len(message)
 	ff1.firstHalfLength = int(math.Floor(float64(ff1.messageLength) / 2.0))
 	ff1.secondHalfLength = ff1.messageLength - ff1.firstHalfLength
@@ -47,6 +61,21 @@ func (ff1 *FF1) setup(message string, tweak []byte) {
 	fixedBlockPart2 := (uint64(ff1.messageLength) << 32) | uint64(len(tweak))
 	binary.BigEndian.PutUint64(ff1.fixedBlock[:8], fixedBlockPart1)
 	binary.BigEndian.PutUint64(ff1.fixedBlock[8:], fixedBlockPart2)
+
+	return nil
+}
+
+func (ff1 *FF1) adjustVariableBlock(variableBlock *[]byte, round int, messageHalf string) error {
+	variableBlockLength := len(*variableBlock)
+	(*variableBlock)[variableBlockLength-ff1.messageByteLength-1] = byte(round)
+	messageHalfNumber, err := strconv.ParseUint(messageHalf, ff1.radix, 64)
+	if err != nil {
+		return err
+	}
+	tmpBuf := make([]byte, 8)
+	binary.BigEndian.PutUint64(tmpBuf, messageHalfNumber)
+	copy((*variableBlock)[variableBlockLength-ff1.messageByteLength:], tmpBuf[8-ff1.messageByteLength:])
+	return nil
 }
 
 func (ff1 *FF1) pseudoRandomFunction(blockString []byte) (block []byte) {
@@ -74,35 +103,31 @@ func (ff1 *FF1) calculateAdjustedByteStringNumber(block []byte) (adjustedByteStr
 }
 
 func (ff1 *FF1) Encrypt(plaintext string, tweak []byte) (message string, err error) {
-	ff1.setup(plaintext, tweak)
+	err = ff1.setup(plaintext, tweak)
+	if err != nil {
+		return message, err
+	}
 
 	variableBlockLength := len(tweak) + 1 + ff1.messageByteLength
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block length to next multiple of 16 bytes (128 bits)
 	variableBlock := make([]byte, variableBlockLength)
 	copy(variableBlock, tweak)
 	for round := 0; round < 10; round++ {
-		variableBlock[variableBlockLength-ff1.messageByteLength-1] = byte(round)
-		secondHalfNumber, err := strconv.ParseUint(ff1.secondHalf, ff1.radix, 64)
+		err := ff1.adjustVariableBlock(&variableBlock, round, ff1.secondHalf)
 		if err != nil {
 			return message, err
 		}
-		tmpBuf := make([]byte, 8)
-		binary.BigEndian.PutUint64(tmpBuf, secondHalfNumber)
-		copy(variableBlock[variableBlockLength-ff1.messageByteLength:], tmpBuf[8-ff1.messageByteLength:])
 		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
-
 		adjustedByteStringNumber := ff1.calculateAdjustedByteStringNumber(block)
 
 		resultStringLength := ff1.secondHalfLength
 		if round%2 == 0 {
 			resultStringLength = ff1.firstHalfLength
 		}
-
 		firstHalfNumber, err := strconv.ParseInt(ff1.firstHalf, ff1.radix, 64)
 		if err != nil {
 			return message, err
 		}
-
 		resultNumber := big.NewInt(0).Add(big.NewInt(firstHalfNumber), adjustedByteStringNumber)
 		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff1.radix), float64(resultStringLength)))))
 
@@ -116,35 +141,31 @@ func (ff1 *FF1) Encrypt(plaintext string, tweak []byte) (message string, err err
 }
 
 func (ff1 *FF1) Decrypt(message string, tweak []byte) (plaintext string, err error) {
-	ff1.setup(message, tweak)
+	err = ff1.setup(message, tweak)
+	if err != nil {
+		return message, err
+	}
 
 	variableBlockLength := len(tweak) + 1 + ff1.messageByteLength
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block size to next multiple of 16
 	variableBlock := make([]byte, variableBlockLength)
 	copy(variableBlock, tweak)
 	for round := 9; round >= 0; round-- {
-		variableBlock[variableBlockLength-ff1.messageByteLength-1] = byte(round)
-		firstHalfNumber, err := strconv.ParseUint(ff1.firstHalf, ff1.radix, 64)
+		err := ff1.adjustVariableBlock(&variableBlock, round, ff1.firstHalf)
 		if err != nil {
 			return message, err
 		}
-		tmpBuf := make([]byte, 8)
-		binary.BigEndian.PutUint64(tmpBuf, firstHalfNumber)
-		copy(variableBlock[variableBlockLength-ff1.messageByteLength:], tmpBuf[8-ff1.messageByteLength:])
 		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
-
 		adjustedByteStringNumber := ff1.calculateAdjustedByteStringNumber(block)
 
 		resultStringLength := ff1.secondHalfLength
 		if round%2 == 0 {
 			resultStringLength = ff1.firstHalfLength
 		}
-
 		secondHalfNumber, err := strconv.ParseInt(ff1.secondHalf, ff1.radix, 64)
 		if err != nil {
 			return message, err
 		}
-
 		resultNumber := big.NewInt(0).Sub(big.NewInt(secondHalfNumber), adjustedByteStringNumber)
 		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff1.radix), float64(resultStringLength)))))
 
@@ -165,6 +186,8 @@ func zeroLeftPad(input string, totalLength int) (output string) {
 	}
 	return output
 }
+
+// Utility Functions
 
 func xorBytes(a, b []byte) (result []byte) {
 	n := len(a)
