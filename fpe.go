@@ -6,8 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"log"
 	"math"
 	"math/big"
 	"strconv"
@@ -46,14 +44,14 @@ type FF3 struct {
 	tweakRight       [4]byte
 }
 
-func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTweakLength int) (ff1 FF1) {
+func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTweakLength int) (ff1 FF1, err error) {
 	key, err := hex.DecodeString(keyString)
 	if err != nil {
-		log.Fatal(err)
+		return FF1{}, err
 	}
 	cipher, err := aes.NewCipher(key)
 	if err != nil {
-		log.Fatal(err)
+		return FF1{}, err
 	}
 
 	return FF1{
@@ -61,24 +59,24 @@ func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTwea
 		radix:            radix,
 		minMessageLength: minMessageLength,
 		maxMessageLength: maxMessageLength,
-		maxTweakLength:   maxTweakLength}
+		maxTweakLength:   maxTweakLength}, nil
 }
 
-func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff3 FF3) {
+func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff3 FF3, err error) {
 	key, err := hex.DecodeString(keyString)
 	if err != nil {
-		log.Fatal(err)
+		return FF3{}, err
 	}
 	cipher, err := aes.NewCipher(reverseBytes(key))
 	if err != nil {
-		log.Fatal(err)
+		return FF3{}, err
 	}
 
 	return FF3{
 		cipher:           cipher,
 		radix:            radix,
 		minMessageLength: minMessageLength,
-		maxMessageLength: maxMessageLength}
+		maxMessageLength: maxMessageLength}, nil
 }
 
 func (ff1 *FF1) setup(message string, tweak []byte) error {
@@ -243,15 +241,6 @@ func (ff3 *FF3) setup(message string, tweak [8]byte) error {
 	copy(ff3.tweakLeft[:], tweak[0:4])
 	copy(ff3.tweakRight[:], tweak[4:8])
 
-	fmt.Println("Message Length (n): ", ff3.messageLength)
-	fmt.Println("First Half Length (u): ", ff3.firstHalfLength)
-	fmt.Println("Second Half Length (v): ", ff3.secondHalfLength)
-	fmt.Println("First Half (A): ", ff3.firstHalf)
-	fmt.Println("Second Half (B): ", ff3.secondHalf)
-	fmt.Printf("Tweak Left (TL): %X\n", ff3.tweakLeft)
-	fmt.Printf("Tweak Right (TR): %X\n", ff3.tweakRight)
-	fmt.Println()
-
 	return nil
 }
 
@@ -267,7 +256,7 @@ func (ff3 *FF3) calculateCipheredBlock(round int, messageHalf string, tweakHalf 
 	if _, ok := reverseSecondHalfNumber.SetString(reverseSecondHalf, ff3.radix); ok {
 		tmp := reverseSecondHalfNumber.Bytes()
 		if len(tmp) > 12 {
-			return cipheredBlock, errors.New("Message was too long for this radix: half the message cannot fit in 12 bytes.")
+			return cipheredBlock, errors.New("Message was too long: half the message cannot fit in 12 bytes.")
 		}
 		copy(block[16-len(tmp):16], tmp)
 	} else {
