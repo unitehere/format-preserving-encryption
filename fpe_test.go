@@ -652,7 +652,7 @@ func TestFF3DecryptInvalidMessage2(t *testing.T) {
 	assertError(t, err)
 }
 
-// Utility Functions
+// Utility Functions for Assertions
 
 func assertExpectedResult(t *testing.T, expected, actual string) {
 	if expected != actual {
