@@ -322,16 +322,16 @@ func (ff3 *FF3) Decrypt(message string, tweak [8]byte) (plaintext string, err er
 // encountered during the process.
 func (ff1 *FF1) prepareConstants(message string, tweak []byte) error {
 	if len(message) <= 0 {
-		return errors.New("Message length was not non-zero.")
+		return errors.New("message length was not non-zero")
 	}
 	if len(message) < ff1.minMessageLength {
-		return errors.New("Message length was less than the minimum allowable length.")
+		return errors.New("message length was less than the minimum allowable length")
 	}
 	if len(message) > ff1.maxMessageLength {
-		return errors.New("Message length was greater than the maximum allowable length.")
+		return errors.New("message length was greater than the maximum allowable length")
 	}
 	if len(tweak) > ff1.maxTweakLength {
-		return errors.New("Tweak length was greater than the maximum allowable length.")
+		return errors.New("tweak length was greater than the maximum allowable length")
 	}
 
 	ff1.messageLength = len(message)
@@ -409,13 +409,13 @@ func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber 
 // encountered during the process.
 func (ff3 *FF3) prepareConstants(message string, tweak [8]byte) error {
 	if len(message) <= 0 {
-		return errors.New("Message length was not non-zero.")
+		return errors.New("message length was not non-zero")
 	}
 	if len(message) < ff3.minMessageLength {
-		return errors.New("Message length was less than the minimum allowable length.")
+		return errors.New("message length was less than the minimum allowable length")
 	}
 	if len(message) > ff3.maxMessageLength {
-		return errors.New("Message length was greater than the maximum allowable length.")
+		return errors.New("message length was greater than the maximum allowable length")
 	}
 
 	ff3.messageLength = len(message)
@@ -446,11 +446,11 @@ func (ff3 *FF3) calculateCipheredBlockNumber(round int, messageHalf string, twea
 	if _, ok := reverseSecondHalfNumber.SetString(reverseSecondHalf, ff3.radix); ok {
 		tmp := reverseSecondHalfNumber.Bytes()
 		if len(tmp) > 12 {
-			return cipheredBlockNumber, errors.New("Message was too long: half the message cannot fit in 12 bytes.")
+			return cipheredBlockNumber, errors.New("message was too long: half the message cannot fit in 12 bytes")
 		}
 		copy(block[16-len(tmp):16], tmp)
 	} else {
-		return cipheredBlockNumber, errors.New("Couldn't interpret numerical string.")
+		return cipheredBlockNumber, errors.New("couldn't interpret numerical string")
 	}
 
 	ff3.cipher.Encrypt(cipheredBlock[:], reverseBytes(block[:]))
