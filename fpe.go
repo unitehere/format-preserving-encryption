@@ -77,6 +77,20 @@ func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTwea
 		return FF1{}, err
 	}
 
+	if radix < 2 || radix > 65536 {
+		return FF1{}, errors.New("radix must be in [2..2^16]")
+	}
+
+	if minMessageLength < 2 || minMessageLength > maxMessageLength || maxMessageLength >= 1 << 32 {
+		return FF1{}, errors.New("2 <= minlen <= maxlen < 2^32")
+	}
+
+	bigRadix := big.NewInt(int64(radix))
+	bigMinLen := big.NewInt(int64(minMessageLength))
+	if bigRadix.Exp(bigRadix, bigMinLen, nil).Cmp(big.NewInt(int64(100))) < 0 {
+		return FF1{}, errors.New("radix^minlen >= 100")
+	}
+
 	return FF1{
 		cipher:           cipher,
 		radix:            radix,
@@ -102,6 +116,29 @@ func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff
 	cipher, err := aes.NewCipher(reverseBytes(key))
 	if err != nil {
 		return FF3{}, err
+	}
+
+	if radix < 2 || radix > 65536 {
+		return FF3{}, errors.New("radix must be in [2..2^16]")
+	}
+
+	if minMessageLength < 2 || minMessageLength > maxMessageLength {
+		return FF3{}, errors.New("2 <= minlen <= maxlen < 2 * floor(log_radix(2^96))")
+	}
+
+	bigTmp := big.NewInt(int64(0))
+	bigRadix := big.NewInt(int64(radix))
+
+	big2Pow96 := big.NewInt(int64(1))
+	big2Pow96.Lsh(big2Pow96, 96)
+
+	if bigTmp.Exp(bigRadix, big.NewInt(int64(maxMessageLength / 2)), nil).Cmp(big2Pow96) >= 0 {
+		return FF3{}, errors.New("2 <= minlen <= maxlen < 2 * floor(log_radix(2^96))")
+	}
+
+	bigMinLen := big.NewInt(int64(minMessageLength))
+	if bigTmp.Exp(bigRadix, bigMinLen, nil).Cmp(big.NewInt(int64(100))) < 0 {
+		return FF3{}, errors.New("radix^minlen >= 100")
 	}
 
 	return FF3{
