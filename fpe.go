@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -72,7 +71,7 @@ func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTwea
 	if err != nil {
 		return FF1{}, err
 	}
-	cipher, err := aes.NewCipher(key)
+	cph, err := aes.NewCipher(key)
 	if err != nil {
 		return FF1{}, err
 	}
@@ -92,7 +91,7 @@ func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTwea
 	}
 
 	return FF1{
-		cipher:           cipher,
+		cipher:           cph,
 		radix:            radix,
 		minMessageLength: minMessageLength,
 		maxMessageLength: maxMessageLength,
@@ -113,7 +112,7 @@ func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff
 	if err != nil {
 		return FF3{}, err
 	}
-	cipher, err := aes.NewCipher(reverseBytes(key))
+	cph, err := aes.NewCipher(reverseBytes(key))
 	if err != nil {
 		return FF3{}, err
 	}
@@ -142,7 +141,7 @@ func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff
 	}
 
 	return FF3{
-		cipher:           cipher,
+		cipher:           cph,
 		radix:            radix,
 		minMessageLength: minMessageLength,
 		maxMessageLength: maxMessageLength}, nil
@@ -159,6 +158,14 @@ func (ff1 *FF1) Encrypt(plaintext string, tweak []byte) (message string, err err
 		return message, err
 	}
 
+	radixBig := big.NewInt(int64(ff1.radix))
+
+	radixPowFirstHalfLen := big.NewInt(int64(ff1.firstHalfLength))
+	radixPowFirstHalfLen.Exp(radixBig, radixPowFirstHalfLen, nil)
+
+	radixPowSecondHalfLen := big.NewInt(int64(ff1.secondHalfLength))
+	radixPowSecondHalfLen.Exp(radixBig, radixPowSecondHalfLen, nil)
+
 	variableBlockLength := len(tweak) + 1 + ff1.messageByteLength
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block length to next multiple of 16 bytes (128 bits)
 	variableBlock := make([]byte, variableBlockLength)
@@ -171,16 +178,17 @@ func (ff1 *FF1) Encrypt(plaintext string, tweak []byte) (message string, err err
 		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
 		cipheredBlockNumber := ff1.calculateCipheredBlockNumber(block)
 
-		resultStringLength := ff1.secondHalfLength
+		resultStringLength, mod := ff1.secondHalfLength, radixPowSecondHalfLen
 		if round%2 == 0 {
-			resultStringLength = ff1.firstHalfLength
+			resultStringLength, mod = ff1.firstHalfLength, radixPowFirstHalfLen
 		}
 		firstHalfNumber, err := strconv.ParseUint(ff1.firstHalf, ff1.radix, 64)
 		if err != nil {
 			return message, err
 		}
-		resultNumber := big.NewInt(0).Add(big.NewInt(int64(firstHalfNumber)), cipheredBlockNumber)
-		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff1.radix), float64(resultStringLength)))))
+		resultNumber := big.NewInt(int64(firstHalfNumber))
+		resultNumber.Add(resultNumber, cipheredBlockNumber)
+		resultNumber.Mod(resultNumber, mod)
 
 		resultString := resultNumber.Text(ff1.radix)
 		resultString = zeroLeftPad(resultString, resultStringLength)
@@ -203,6 +211,14 @@ func (ff1 *FF1) Decrypt(message string, tweak []byte) (plaintext string, err err
 		return message, err
 	}
 
+	radixBig := big.NewInt(int64(ff1.radix))
+
+	radixPowFirstHalfLen := big.NewInt(int64(ff1.firstHalfLength))
+	radixPowFirstHalfLen.Exp(radixBig, radixPowFirstHalfLen, nil)
+
+	radixPowSecondHalfLen := big.NewInt(int64(ff1.secondHalfLength))
+	radixPowSecondHalfLen.Exp(radixBig, radixPowSecondHalfLen, nil)
+
 	variableBlockLength := len(tweak) + 1 + ff1.messageByteLength
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block size to next multiple of 16
 	variableBlock := make([]byte, variableBlockLength)
@@ -215,16 +231,17 @@ func (ff1 *FF1) Decrypt(message string, tweak []byte) (plaintext string, err err
 		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
 		cipheredBlockNumber := ff1.calculateCipheredBlockNumber(block)
 
-		resultStringLength := ff1.secondHalfLength
+		resultStringLength, mod := ff1.secondHalfLength, radixPowSecondHalfLen
 		if round%2 == 0 {
-			resultStringLength = ff1.firstHalfLength
+			resultStringLength, mod = ff1.firstHalfLength, radixPowFirstHalfLen
 		}
 		secondHalfNumber, err := strconv.ParseUint(ff1.secondHalf, ff1.radix, 64)
 		if err != nil {
 			return message, err
 		}
-		resultNumber := big.NewInt(0).Sub(big.NewInt(int64(secondHalfNumber)), cipheredBlockNumber)
-		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff1.radix), float64(resultStringLength)))))
+		resultNumber := big.NewInt(int64(secondHalfNumber))
+		resultNumber.Sub(resultNumber, cipheredBlockNumber)
+		resultNumber.Mod(resultNumber, mod)
 
 		resultString := resultNumber.Text(ff1.radix)
 		resultString = zeroLeftPad(resultString, resultStringLength)
@@ -247,10 +264,18 @@ func (ff3 *FF3) Encrypt(plaintext string, tweak [8]byte) (message string, err er
 		return message, err
 	}
 
+	radixBig := big.NewInt(int64(ff3.radix))
+
+	radixPowFirstHalfLen := big.NewInt(int64(ff3.firstHalfLength))
+	radixPowFirstHalfLen.Exp(radixBig, radixPowFirstHalfLen, nil)
+
+	radixPowSecondHalfLen := big.NewInt(int64(ff3.secondHalfLength))
+	radixPowSecondHalfLen.Exp(radixBig, radixPowSecondHalfLen, nil)
+
 	for round := 0; round < 8; round++ {
-		resultStringLength, tweakHalf := ff3.secondHalfLength, ff3.tweakLeft
+		resultStringLength, tweakHalf, mod := ff3.secondHalfLength, ff3.tweakLeft, radixPowSecondHalfLen
 		if round%2 == 0 {
-			resultStringLength, tweakHalf = ff3.firstHalfLength, ff3.tweakRight
+			resultStringLength, tweakHalf, mod = ff3.firstHalfLength, ff3.tweakRight, radixPowFirstHalfLen
 		}
 
 		cipheredBlockNumber, err := ff3.calculateCipheredBlockNumber(round, ff3.secondHalf, tweakHalf)
@@ -262,8 +287,9 @@ func (ff3 *FF3) Encrypt(plaintext string, tweak [8]byte) (message string, err er
 		if err != nil {
 			return message, err
 		}
-		resultNumber := big.NewInt(0).Add(big.NewInt(int64(firstHalfNumber)), cipheredBlockNumber)
-		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff3.radix), float64(resultStringLength)))))
+		resultNumber := big.NewInt(int64(firstHalfNumber))
+		resultNumber.Add(resultNumber, cipheredBlockNumber)
+		resultNumber.Mod(resultNumber, mod)
 		resultString := resultNumber.Text(ff3.radix)
 		resultString = reverse(zeroLeftPad(resultString, resultStringLength))
 
@@ -286,10 +312,18 @@ func (ff3 *FF3) Decrypt(message string, tweak [8]byte) (plaintext string, err er
 		return plaintext, err
 	}
 
+	radixBig := big.NewInt(int64(ff3.radix))
+
+	radixPowFirstHalfLen := big.NewInt(int64(ff3.firstHalfLength))
+	radixPowFirstHalfLen.Exp(radixBig, radixPowFirstHalfLen, nil)
+
+	radixPowSecondHalfLen := big.NewInt(int64(ff3.secondHalfLength))
+	radixPowSecondHalfLen.Exp(radixBig, radixPowSecondHalfLen, nil)
+
 	for round := 7; round >= 0; round-- {
-		resultStringLength, tweakHalf := ff3.secondHalfLength, ff3.tweakLeft
+		resultStringLength, tweakHalf, mod := ff3.secondHalfLength, ff3.tweakLeft, radixPowSecondHalfLen
 		if round%2 == 0 {
-			resultStringLength, tweakHalf = ff3.firstHalfLength, ff3.tweakRight
+			resultStringLength, tweakHalf, mod = ff3.firstHalfLength, ff3.tweakRight, radixPowFirstHalfLen
 		}
 
 		cipheredBlockNumber, err := ff3.calculateCipheredBlockNumber(round, ff3.firstHalf, tweakHalf)
@@ -301,8 +335,9 @@ func (ff3 *FF3) Decrypt(message string, tweak [8]byte) (plaintext string, err er
 		if err != nil {
 			return plaintext, err
 		}
-		resultNumber := big.NewInt(0).Sub(big.NewInt(int64(firstHalfNumber)), cipheredBlockNumber)
-		resultNumber.Mod(resultNumber, big.NewInt(int64(math.Pow(float64(ff3.radix), float64(resultStringLength)))))
+		resultNumber := big.NewInt(int64(firstHalfNumber))
+		resultNumber.Sub(resultNumber, cipheredBlockNumber)
+		resultNumber.Mod(resultNumber, mod)
 		resultString := resultNumber.Text(ff3.radix)
 		resultString = reverse(zeroLeftPad(resultString, resultStringLength))
 
@@ -335,11 +370,14 @@ func (ff1 *FF1) prepareConstants(message string, tweak []byte) error {
 	}
 
 	ff1.messageLength = len(message)
-	ff1.firstHalfLength = int(math.Floor(float64(ff1.messageLength) / 2.0))
+	ff1.firstHalfLength = ff1.messageLength / 2
 	ff1.secondHalfLength = ff1.messageLength - ff1.firstHalfLength
 	ff1.firstHalf, ff1.secondHalf = message[0:ff1.firstHalfLength], message[ff1.firstHalfLength:ff1.messageLength]
-	ff1.messageByteLength = int(math.Ceil(math.Ceil(float64(ff1.secondHalfLength)*math.Log2(float64(ff1.radix))) / 8.0))
-	ff1.cipheredBlockLength = int(4*math.Ceil(float64(ff1.messageByteLength)/4.0) + 4)
+
+	tmp := big.NewInt(int64(ff1.radix))
+	tmp.Exp(tmp, big.NewInt(int64(ff1.secondHalfLength)), nil)
+	ff1.messageByteLength = ceilRsh(ceilLog2(tmp), 3)
+	ff1.cipheredBlockLength = 4 * ceilRsh(ff1.messageByteLength, 2) + 4
 
 	fixedBlockPart1 := uint64(0x0102010000000a00) | (uint64(ff1.radix) << 16) | uint64(ff1.firstHalfLength%256)
 	fixedBlockPart2 := (uint64(ff1.messageLength) << 32) | uint64(len(tweak))
@@ -388,7 +426,7 @@ func (ff1 *FF1) pseudoRandomFunction(blockString []byte) (block []byte) {
 // an AES cipher function. It then converts the resulting byte slice into an
 // integer and returns it as a result.
 func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber *big.Int) {
-	byteString := make([]byte, int(math.Ceil(float64(ff1.cipheredBlockLength)/16.0))*16)
+	byteString := make([]byte, 16 * ceilRsh(ff1.cipheredBlockLength, 4))
 	copy(byteString[0:16], block)
 	mask := make([]byte, 2)
 	for blockIndex := 1; blockIndex*16 < len(block); blockIndex++ {
@@ -419,7 +457,7 @@ func (ff3 *FF3) prepareConstants(message string, tweak [8]byte) error {
 	}
 
 	ff3.messageLength = len(message)
-	ff3.firstHalfLength = int(math.Ceil(float64(ff3.messageLength) / 2.0))
+	ff3.firstHalfLength = ceilRsh(ff3.messageLength, 1)
 	ff3.secondHalfLength = ff3.messageLength - ff3.firstHalfLength
 	ff3.firstHalf, ff3.secondHalf = message[0:ff3.firstHalfLength], message[ff3.firstHalfLength:ff3.messageLength]
 	copy(ff3.tweakLeft[:], tweak[0:4])
@@ -506,4 +544,32 @@ func reverseBytes(b []byte) []byte {
 		reverse[i], reverse[j] = b[j], b[i]
 	}
 	return reverse
+}
+
+// ceil(x / 2^n)
+func ceilRsh(x int, n uint) int {
+	if x & ((1 << n) - 1) == 0 {
+		return x >> n
+	} else {
+		return x >> n + 1
+	}
+}
+
+// ceil(log2(x))
+func ceilLog2(x *big.Int) int {
+	n := x.BitLen()
+	if n == 0 || n == 1 {
+		return 0
+	}
+
+	// Handle the case where x is a power of two
+	y := big.NewInt(int64(1))
+	y.Sub(x, y)
+	y.AndNot(x, y)
+
+	if x.Cmp(y) == 0 {
+		return n - 1
+	} else {
+		return n
+	}
 }
