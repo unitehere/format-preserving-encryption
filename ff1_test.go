@@ -272,3 +272,19 @@ func TestFF1DecryptLongTweak(t *testing.T) {
 	_, err = ff1.Decrypt("12345678901234567890", []byte{0x37, 0x37, 0x37, 0x37, 0x70, 0x71, 0x72, 0x73, 0x37, 0x37, 0x37})
 	assertError(t, err)
 }
+
+func BenchmarkFF1Encrypt(b *testing.B) {
+	ff1, _ := NewFF1("2B7E151628AED2A6ABF7158809CF4F3C", 10, 2, 20, 16)
+
+	for i := 0; i < b.N; i++ {
+		ff1.Encrypt("0123456789", []byte{})
+	}
+}
+
+func BenchmarkFF1Decrypt(b *testing.B) {
+	ff1, _ := NewFF1("2B7E151628AED2A6ABF7158809CF4F3C", 10, 2, 20, 16)
+
+	for i := 0; i < b.N; i++ {
+		ff1.Decrypt("2433477484", []byte{})
+	}
+}

@@ -382,3 +382,20 @@ func TestFF3DecryptInvalidMessage2(t *testing.T) {
 	assertError(t, err)
 }
 
+func BenchmarkFF3Encrypt(b *testing.B) {
+	ff3, _ := NewFF3("EF4359D8D580AA4F7F036D6F04FC6A94", 10, 2, 20)
+	tweak := [8]byte{0xD8, 0xE7, 0x92, 0x0A, 0xFA, 0x33, 0x0A, 0x73}
+
+	for i := 0; i < b.N; i++ {
+		ff3.Encrypt("890121234567890000", tweak)
+	}
+}
+
+func BenchmarkFF3Decrypt(b *testing.B) {
+	ff3, _ := NewFF3("EF4359D8D580AA4F7F036D6F04FC6A94", 10, 2, 20)
+	tweak := [8]byte{0xD8, 0xE7, 0x92, 0x0A, 0xFA, 0x33, 0x0A, 0x73}
+
+	for i := 0; i < b.N; i++ {
+		ff3.Decrypt("750918814058654607", tweak)
+	}
+}
