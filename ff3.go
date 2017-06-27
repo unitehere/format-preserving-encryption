@@ -8,7 +8,6 @@ import (
 	"errors"
 	"math/big"
 	"strconv"
-	"strings"
 )
 
 // The FF3 type allows for encryption and decryption of messages using the FF3
@@ -62,7 +61,7 @@ func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff
 	big2Pow96 := big.NewInt(int64(1))
 	big2Pow96.Lsh(big2Pow96, 96)
 
-	if bigTmp.Exp(bigRadix, big.NewInt(int64(maxMessageLength / 2)), nil).Cmp(big2Pow96) >= 0 {
+	if bigTmp.Exp(bigRadix, big.NewInt(int64(maxMessageLength/2)), nil).Cmp(big2Pow96) >= 0 {
 		return FF3{}, errors.New("2 <= minlen <= maxlen < 2 * floor(log_radix(2^96))")
 	}
 
@@ -231,38 +230,4 @@ func (ff3 *FF3) calculateCipheredBlockNumber(round int, messageHalf string, twea
 	cipheredBlockNumber = big.NewInt(0).SetBytes(cipheredBlock[:])
 
 	return cipheredBlockNumber, nil
-}
-
-// String and Byte Operations
-
-// zeroLeftPad left pads a copy of an input string with '0' characters until the
-// new string reaches at least the desired total length and returns the result.
-// The input argument is the string to left pad.
-// The totalLength argument should be the desired length of the new string.
-func zeroLeftPad(input string, totalLength int) (output string) {
-	length := len(input)
-	output = input
-	if length < totalLength {
-		output = strings.Repeat("0", totalLength-length) + output
-	}
-	return output
-}
-
-// reverse takes a string as input and returns its reverse.
-func reverse(s string) string {
-	r := []rune(s)
-	for i, j := 0, len(r)-1; i < len(r)/2; i, j = i+1, j-1 {
-		r[i], r[j] = r[j], r[i]
-	}
-	return string(r)
-}
-
-// reverse takes a byte slice as input and returns a new byte slice with the
-// order of the bytes reversed.
-func reverseBytes(b []byte) []byte {
-	reverse := make([]byte, len(b))
-	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
-		reverse[i], reverse[j] = b[j], b[i]
-	}
-	return reverse
 }

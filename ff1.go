@@ -54,7 +54,7 @@ func NewFF1(keyString string, radix, minMessageLength, maxMessageLength, maxTwea
 		return FF1{}, errors.New("radix must be in [2..2^16]")
 	}
 
-	if minMessageLength < 2 || minMessageLength > maxMessageLength || maxMessageLength >= 1 << 32 {
+	if minMessageLength < 2 || minMessageLength > maxMessageLength || maxMessageLength >= 1<<32 {
 		return FF1{}, errors.New("2 <= minlen <= maxlen < 2^32")
 	}
 
@@ -206,7 +206,7 @@ func (ff1 *FF1) prepareConstants(message string, tweak []byte) error {
 	tmp := big.NewInt(int64(ff1.radix))
 	tmp.Exp(tmp, big.NewInt(int64(ff1.secondHalfLength)), nil)
 	ff1.messageByteLength = ceilRsh(ceilLog2(tmp), 3)
-	ff1.cipheredBlockLength = 4 * ceilRsh(ff1.messageByteLength, 2) + 4
+	ff1.cipheredBlockLength = 4*ceilRsh(ff1.messageByteLength, 2) + 4
 
 	fixedBlockPart1 := uint64(0x0102010000000a00) | (uint64(ff1.radix) << 16) | uint64(ff1.firstHalfLength%256)
 	fixedBlockPart2 := (uint64(ff1.messageLength) << 32) | uint64(len(tweak))
@@ -255,7 +255,7 @@ func (ff1 *FF1) pseudoRandomFunction(blockString []byte) (block []byte) {
 // an AES cipher function. It then converts the resulting byte slice into an
 // integer and returns it as a result.
 func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber *big.Int) {
-	byteString := make([]byte, 16 * ceilRsh(ff1.cipheredBlockLength, 4))
+	byteString := make([]byte, 16*ceilRsh(ff1.cipheredBlockLength, 4))
 	copy(byteString[0:16], block)
 	mask := make([]byte, 2)
 	for blockIndex := 1; blockIndex*16 < len(block); blockIndex++ {
@@ -267,4 +267,3 @@ func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber 
 	cipheredBlockNumber.SetBytes(cipheredBlock)
 	return cipheredBlockNumber
 }
-
