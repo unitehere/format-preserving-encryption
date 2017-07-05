@@ -82,7 +82,7 @@ func NewFF3(keyString string, radix, minMessageLength, maxMessageLength int) (ff
 // encountered during encryption.
 // The plaintext argument should be the message to encrypt.
 // The tweak argument should be the tweak to use in the encryption process.
-func (ff3 *FF3) Encrypt(plaintext string, tweak [8]byte) (message string, err error) {
+func (ff3 *FF3) Encrypt(plaintext string, tweak []byte) (message string, err error) {
 	err = ff3.prepareConstants(plaintext, tweak)
 	if err != nil {
 		return message, err
@@ -130,7 +130,7 @@ func (ff3 *FF3) Encrypt(plaintext string, tweak [8]byte) (message string, err er
 // encountered during decryption.
 // The plaintext argument should be the message to decrypt.
 // The tweak argument should be the tweak to use in the decryption process.
-func (ff3 *FF3) Decrypt(message string, tweak [8]byte) (plaintext string, err error) {
+func (ff3 *FF3) Decrypt(message string, tweak []byte) (plaintext string, err error) {
 	err = ff3.prepareConstants(message, tweak)
 	if err != nil {
 		return plaintext, err
@@ -179,7 +179,7 @@ func (ff3 *FF3) Decrypt(message string, tweak [8]byte) (plaintext string, err er
 // encryption or decryption. It sets some constants that will be used in the
 // encryption or decryption calculation and returns any error that is
 // encountered during the process.
-func (ff3 *FF3) prepareConstants(message string, tweak [8]byte) error {
+func (ff3 *FF3) prepareConstants(message string, tweak []byte) error {
 	if len(message) <= 0 {
 		return errors.New("message length was not non-zero")
 	}
@@ -188,6 +188,9 @@ func (ff3 *FF3) prepareConstants(message string, tweak [8]byte) error {
 	}
 	if len(message) > ff3.maxMessageLength {
 		return errors.New("message length was greater than the maximum allowable length")
+	}
+	if len(tweak) != 8 {
+		return errors.New("tweak length was not 8 bytes")
 	}
 
 	ff3.messageLength = len(message)

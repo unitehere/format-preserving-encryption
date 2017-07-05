@@ -5,16 +5,17 @@ import (
 	"fpe/fpe"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/husobee/vestigo"
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
+	"github.com/unrolled/secure"
 )
 
 type MessageValues struct {
 	Values []string `json:"values"`
 }
 
-var arks map[string]fpe.FF1 = make(map[string]fpe.FF1)
+var arks map[string]fpe.Algorithm = make(map[string]fpe.Algorithm)
 
 func getValuesFromURLParam(r *http.Request) []string {
 	values := r.URL.Query()["q"]
@@ -34,12 +35,12 @@ func getValuesFromBody(r *http.Request) (MessageValues, error) {
 }
 
 func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
-	ff1 := arks[vestigo.Param(r, "arkName")]
+	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
 	payload := MessageValues{Values: []string{}}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
-		message, err := ff1.Encrypt(string(value), []byte{})
+		message, err := ark.Encrypt(string(value), []byte{})
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Unable to encrypt value: " + value))
@@ -53,7 +54,7 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
-	ff1 := arks[vestigo.Param(r, "arkName")]
+	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -63,7 +64,7 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	payload := MessageValues{Values: []string{}}
 	for i := 0; i < len(messageValues.Values); i++ {
 		value := messageValues.Values[i]
-		message, err := ff1.Encrypt(string(value), []byte{})
+		message, err := ark.Encrypt(string(value), []byte{})
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Unable to encrypt value: " + value))
@@ -77,12 +78,12 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
-	ff1 := arks[vestigo.Param(r, "arkName")]
+	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
 	payload := MessageValues{Values: []string{}}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
-		message, err := ff1.Decrypt(string(value), []byte{})
+		message, err := ark.Decrypt(string(value), []byte{})
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Unable to decrypt value: " + value))
@@ -96,7 +97,7 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
-	ff1 := arks[vestigo.Param(r, "arkName")]
+	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -106,7 +107,7 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	payload := MessageValues{Values: []string{}}
 	for i := 0; i < len(messageValues.Values); i++ {
 		value := messageValues.Values[i]
-		message, err := ff1.Decrypt(string(value), []byte{})
+		message, err := ark.Decrypt(string(value), []byte{})
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Unable to decrypt value: " + value))
@@ -119,35 +120,45 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func checkArkName(f http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		arkName := vestigo.Param(r, "arkName")
+func ArkCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		arkName := chi.URLParam(r, "arkName")
 		_, found := arks[arkName]
 		if found {
-			f(w, r)
+			next.ServeHTTP(w, r)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte("ARK name not configured"))
 		}
-	}
+	})
 }
 
 func main() {
 	ff1, _ := fpe.NewFF1("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20, 16)
-	arks["test"] = ff1
+	arks["ff1"] = &ff1
+	ff3, _ := fpe.NewFF3("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20)
+	arks["ff3"] = &ff3
 
-	router := vestigo.NewRouter()
-	router.SetGlobalCors(&vestigo.CorsAccessControl{
-		AllowOrigin:      []string{"*"},
-		AllowCredentials: true,
-		ExposeHeaders:    []string{},
-		MaxAge:           3600 * time.Second,
-		AllowHeaders:     []string{},
+	secureMiddleware := secure.New(secure.Options{
+		FrameDeny:        true,
+		BrowserXssFilter: true,
 	})
-	router.Get("/v1/ark/:arkName/encrypt", GetEncryptHandler, checkArkName)
-	router.Post("/v1/ark/:arkName/encrypt", PostEncryptHandler, checkArkName)
-	router.Get("/v1/ark/:arkName/decrypt", GetDecryptHandler, checkArkName)
-	router.Post("/v1/ark/:arkName/decrypt", PostDecryptHandler, checkArkName)
 
-	http.ListenAndServe(":8080", router)
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(secureMiddleware.Handler)
+
+	r.Route("/v1/ark/{arkName}", func(r chi.Router) {
+		r.Use(ArkCtx)
+
+		r.Get("/encrypt", GetEncryptHandler)
+		r.Post("/encrypt", PostEncryptHandler)
+		r.Get("/decrypt", GetDecryptHandler)
+		r.Post("/decrypt", PostDecryptHandler)
+	})
+
+	http.ListenAndServe(":8080", r)
 }
