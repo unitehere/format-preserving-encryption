@@ -46,7 +46,7 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Unable to encrypt value: " + value))
 			return
 		}
-		payload.Values = append(payload.Values, message)
+		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
@@ -70,7 +70,7 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Unable to encrypt value: " + value))
 			return
 		}
-		payload.Values = append(payload.Values, message)
+		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
@@ -89,7 +89,7 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Unable to decrypt value: " + value))
 			return
 		}
-		payload.Values = append(payload.Values, message)
+		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
@@ -113,7 +113,7 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Unable to decrypt value: " + value))
 			return
 		}
-		payload.Values = append(payload.Values, message)
+		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
