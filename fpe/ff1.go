@@ -251,7 +251,7 @@ func (ff1 *FF1) pseudoRandomFunction(block, blockString []byte) {
 
 	for index := 0; index < numBlocks; index++ {
 		for i := 0; i < 16; i++ {
-			block[i] ^= blockString[index*16 + i]
+			block[i] ^= blockString[index*16+i]
 		}
 		ff1.cipher.Encrypt(block, block)
 	}
@@ -265,9 +265,9 @@ func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber 
 	copy(byteString[0:16], block)
 	b0 := block[0]
 	b1 := block[1]
-	for blockIndex := 1; blockIndex*16 < len(block); blockIndex++ {
-		block[0] = b0 ^ byte((blockIndex & 0xFF00) >> 8)
-		block[1] = b1 ^ byte(blockIndex & 0x00FF)
+	for blockIndex := 1; blockIndex*16 < len(byteString); blockIndex++ {
+		block[0] = b0 ^ byte((blockIndex&0xFF00)>>8)
+		block[1] = b1 ^ byte(blockIndex&0x00FF)
 
 		ff1.cipher.Encrypt(byteString[blockIndex*16:(blockIndex+1)*16], block)
 	}
