@@ -95,12 +95,13 @@ func (ff1 *FF1) Encrypt(plaintext string, tweak []byte) (message string, err err
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block length to next multiple of 16 bytes (128 bits)
 	variableBlock := make([]byte, variableBlockLength)
 	copy(variableBlock, tweak)
+	block := make([]byte, 16)
 	for round := 0; round < 10; round++ {
 		err := ff1.adjustVariableBlock(&variableBlock, round, ff1.secondHalf)
 		if err != nil {
 			return message, err
 		}
-		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
+		ff1.pseudoRandomFunction(block, append(ff1.fixedBlock[:], variableBlock...))
 		cipheredBlockNumber := ff1.calculateCipheredBlockNumber(block)
 
 		resultStringLength, mod := ff1.secondHalfLength, radixPowSecondHalfLen
@@ -148,12 +149,13 @@ func (ff1 *FF1) Decrypt(message string, tweak []byte) (plaintext string, err err
 	variableBlockLength = variableBlockLength + (16 - variableBlockLength%16) //round variable block size to next multiple of 16
 	variableBlock := make([]byte, variableBlockLength)
 	copy(variableBlock, tweak)
+	block := make([]byte, 16)
 	for round := 9; round >= 0; round-- {
 		err := ff1.adjustVariableBlock(&variableBlock, round, ff1.firstHalf)
 		if err != nil {
 			return message, err
 		}
-		block := ff1.pseudoRandomFunction(append(ff1.fixedBlock[:], variableBlock...))
+		ff1.pseudoRandomFunction(block, append(ff1.fixedBlock[:], variableBlock...))
 		cipheredBlockNumber := ff1.calculateCipheredBlockNumber(block)
 
 		resultStringLength, mod := ff1.secondHalfLength, radixPowSecondHalfLen
@@ -241,14 +243,18 @@ func (ff1 *FF1) adjustVariableBlock(variableBlock *[]byte, round int, messageHal
 // function as part of the FF1 encryption or decryption algorithm. It takes a
 // combination of the fixed and variable blocks concatenated together and
 // returns the resulting byte slice.
-func (ff1 *FF1) pseudoRandomFunction(blockString []byte) (block []byte) {
+func (ff1 *FF1) pseudoRandomFunction(block, blockString []byte) {
 	numBlocks := len(blockString) / 16
-	block = make([]byte, 16)
-	for index := 0; index < numBlocks; index++ {
-		ff1.cipher.Encrypt(block, xorBytes(block, blockString[index*16:index*16+16]))
+	for i := 0; i < 16; i++ {
+		block[i] = 0
 	}
 
-	return block
+	for index := 0; index < numBlocks; index++ {
+		for i := 0; i < 16; i++ {
+			block[i] ^= blockString[index*16 + i]
+		}
+		ff1.cipher.Encrypt(block, block)
+	}
 }
 
 // calculateCipheredBlockNumber takes a byte slice as input and runs it through
@@ -257,11 +263,17 @@ func (ff1 *FF1) pseudoRandomFunction(blockString []byte) (block []byte) {
 func (ff1 *FF1) calculateCipheredBlockNumber(block []byte) (cipheredBlockNumber *big.Int) {
 	byteString := make([]byte, 16*ceilRsh(ff1.cipheredBlockLength, 4))
 	copy(byteString[0:16], block)
-	mask := make([]byte, 2)
+	b0 := block[0]
+	b1 := block[1]
 	for blockIndex := 1; blockIndex*16 < len(block); blockIndex++ {
-		binary.BigEndian.PutUint16(mask, uint16(blockIndex))
-		ff1.cipher.Encrypt(byteString[blockIndex*16:(blockIndex+1)*16], xorBytes(block, mask))
+		block[0] = b0 ^ byte((blockIndex & 0xFF00) >> 8)
+		block[1] = b1 ^ byte(blockIndex & 0x00FF)
+
+		ff1.cipher.Encrypt(byteString[blockIndex*16:(blockIndex+1)*16], block)
 	}
+
+	block[0] = b0
+	block[1] = b1
 	cipheredBlock := byteString[0:ff1.cipheredBlockLength]
 	cipheredBlockNumber = big.NewInt(0)
 	cipheredBlockNumber.SetBytes(cipheredBlock)

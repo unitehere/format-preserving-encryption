@@ -3,7 +3,6 @@ package fpe
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"math/big"
@@ -212,9 +211,12 @@ func (ff3 *FF3) prepareConstants(message string, tweak []byte) error {
 func (ff3 *FF3) calculateCipheredBlockNumber(round int, messageHalf string, tweakHalf [4]byte) (cipheredBlockNumber *big.Int, err error) {
 	block := [16]byte{}
 	cipheredBlock := [16]byte{}
-	roundMask := make([]byte, 4)
-	binary.BigEndian.PutUint32(roundMask, uint32(round))
-	copy(block[0:4], xorBytes(tweakHalf[:], roundMask))
+
+	// TODO make tweakHalf a uint32 so we can do this in one op
+	block[0] = tweakHalf[0] ^ byte(round & 0xFF000000 >> 24)
+	block[1] = tweakHalf[1] ^ byte(round & 0x00FF0000 >> 16)
+	block[2] = tweakHalf[2] ^ byte(round & 0x0000FF00 >> 8)
+	block[3] = tweakHalf[3] ^ byte(round & 0x000000FF)
 
 	reverseSecondHalf := reverse(messageHalf)
 	reverseSecondHalfNumber := big.NewInt(0)
