@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fpe/fpe"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/go-chi/chi"
@@ -160,5 +161,10 @@ func main() {
 		r.Post("/decrypt", PostDecryptHandler)
 	})
 
-	http.ListenAndServe(":8080", r)
+	platformPort, platformPortFound := os.LookupEnv("HTTP_PLATFORM_PORT")
+	if platformPortFound {
+		http.ListenAndServe(":"+platformPort, r)
+	} else {
+		http.ListenAndServe(":8080", r)
+	}
 }
