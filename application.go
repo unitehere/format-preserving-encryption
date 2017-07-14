@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fpe/fpe"
+	"log"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/goware/cors"
 	"github.com/unrolled/secure"
 )
 
@@ -146,6 +148,18 @@ func main() {
 	})
 
 	r := chi.NewRouter()
+
+	cors := cors.New(cors.Options{
+		// AllowedOrigins: []string{"https://foo.com"}, // Use this to allow specific origin hosts
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
+	r.Use(cors.Handler)
+
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
@@ -161,10 +175,14 @@ func main() {
 		r.Post("/decrypt", PostDecryptHandler)
 	})
 
-	platformPort, platformPortFound := os.LookupEnv("HTTP_PLATFORM_PORT")
-	if platformPortFound {
-		http.ListenAndServe(":"+platformPort, r)
-	} else {
-		http.ListenAndServe(":8080", r)
+	f, _ := os.Create("/var/log/golang/fpe-server.log")
+	defer f.Close()
+	log.SetOutput(f)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "80"
 	}
+	log.Printf("Listening on port %s\n\n", port)
+	http.ListenAndServe(":"+port, r)
 }
