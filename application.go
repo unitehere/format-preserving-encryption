@@ -51,6 +51,7 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
 	return
@@ -75,6 +76,7 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
 	return
@@ -94,6 +96,7 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
 	return
@@ -118,6 +121,7 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(payload)
 	return
