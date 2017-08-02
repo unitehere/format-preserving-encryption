@@ -14,11 +14,16 @@ import (
 	"github.com/unrolled/secure"
 )
 
+// The MessageValues type describes the structure of the body of POST requests and all
+// responses. The structure is json of this structure:
+// {
+//   "values": ["message", "values"]
+// }
 type MessageValues struct {
 	Values []string `json:"values"`
 }
 
-var arks map[string]fpe.Algorithm = make(map[string]fpe.Algorithm)
+var arks = make(map[string]fpe.Algorithm)
 
 func getValuesFromURLParam(r *http.Request) []string {
 	values := r.URL.Query()["q"]
@@ -37,6 +42,9 @@ func getValuesFromBody(r *http.Request) (MessageValues, error) {
 	return messageValues, err
 }
 
+// GetEncryptHandler handles requests for GET /v1/ark/{arkname}/encrypt
+// Takes a query parameter 'q' that is a comma separated list of values to encrypt
+// and returns a response body of type MessageValues.
 func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
@@ -57,6 +65,9 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// PostEncryptHandler handles requests for POST /v1/ark/{arkname}/encrypt
+// Takes a json body of structure MessageValues and returns a body of structure
+// MessageValues.
 func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
@@ -82,6 +93,9 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// GetDecryptHandler handles requests for GET /v1/ark/{arkname}/decrypt
+// Takes a query parameter 'q' that is a comma separated list of values to decrypt
+// and returns a response body of type MessageValues.
 func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
@@ -102,6 +116,9 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// PostDecryptHandler handles requests for POST /v1/ark/{arkname}/decrypt
+// Takes a json body of structure MessageValues and returns a body of structure
+// MessageValues.
 func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
@@ -127,6 +144,8 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// ArkCtx checks to make sure the arkName URL parameter is valid ARK name and returns
+// a 404 if it cannot be found.
 func ArkCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		arkName := chi.URLParam(r, "arkName")
