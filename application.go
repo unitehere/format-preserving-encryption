@@ -191,12 +191,12 @@ func apiKeyValid(r *http.Request) bool {
 		return false
 	}
 
-	db, err := sql.Open("mysql", "/new_database")
+	db, err := sql.Open("mysql", "/anthem_fpe?parseTime=true")
 	if err != nil { log.Fatal(err) } // TODO how do we handle this error?
 	defer db.Close()
 
 	var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
-	err = db.QueryRow("SELECT api_key FROM api_keys WHERE api_key=?", key).Scan(&foundKey)
+	err = db.QueryRow("SELECT value FROM api_keys WHERE value=?", key).Scan(&foundKey)
 	switch {
 		case err == sql.ErrNoRows:
 			return false
