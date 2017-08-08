@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"database/sql"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/goware/cors"
 	"github.com/unrolled/secure"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // The MessageValues type describes the structure of the body of POST requests and all
@@ -46,6 +48,12 @@ func getValuesFromBody(r *http.Request) (MessageValues, error) {
 // Takes a query parameter 'q' that is a comma separated list of values to encrypt
 // and returns a response body of type MessageValues.
 func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
+	if !apiKeyValid(r) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("You need a valid token."))
+		return
+	}
+	
 	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
 	payload := MessageValues{Values: []string{}}
@@ -69,6 +77,12 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 // Takes a json body of structure MessageValues and returns a body of structure
 // MessageValues.
 func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
+	if !apiKeyValid(r) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("You need a valid token."))
+		return
+	}
+
 	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
 	if err != nil {
@@ -97,6 +111,12 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 // Takes a query parameter 'q' that is a comma separated list of values to decrypt
 // and returns a response body of type MessageValues.
 func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
+	if !apiKeyValid(r) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("You need a valid token."))
+		return
+	}
+	
 	ark := arks[chi.URLParam(r, "arkName")]
 	values := getValuesFromURLParam(r)
 	payload := MessageValues{Values: []string{}}
@@ -120,6 +140,12 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 // Takes a json body of structure MessageValues and returns a body of structure
 // MessageValues.
 func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
+	if !apiKeyValid(r) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("You need a valid token."))
+		return
+	}
+	
 	ark := arks[chi.URLParam(r, "arkName")]
 	messageValues, err := getValuesFromBody(r)
 	if err != nil {
@@ -157,6 +183,27 @@ func ArkCtx(next http.Handler) http.Handler {
 			w.Write([]byte("ARK name not configured"))
 		}
 	})
+}
+
+func apiKeyValid(r *http.Request) bool {
+	key := strings.Trim(r.Header.Get("Authorization"), "Bearer ")
+	if key == "" {
+		return false
+	}
+
+	db, err := sql.Open("mysql", "/new_database")
+	if err != nil { log.Fatal(err) } // TODO how do we handle this error?
+	defer db.Close()
+
+	var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
+	err = db.QueryRow("SELECT api_key FROM api_keys WHERE api_key=?", key).Scan(&foundKey)
+	switch {
+		case err == sql.ErrNoRows:
+			return false
+		case err != nil:
+			log.Fatal(err)
+	}
+	return true
 }
 
 func main() {
