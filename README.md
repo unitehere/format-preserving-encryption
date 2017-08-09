@@ -31,11 +31,9 @@ POST uses a JSON in the body of your call, eg
 Works the same way as encrypt, with different endpoint name.
 
 ### Database Migrations
-download cli tool https://github.com/pressly/goose
+Get the correct goose:
+`go get bitbucket.org/liamstask/goose/cmd/goose`
 
-To migrate
-`goose mysql "root@/anthem_fpe?parseTime=true" up`
+To configure, edit `db/dbconf.yml`
 
-To see migration history:
-`goose mysql "root@/anthem_fpe?parseTime=true" status`
-Note the argument `?parseTime=true` 
+To migrate use `goose up`

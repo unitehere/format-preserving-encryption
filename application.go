@@ -9,7 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
+	
+	"bitbucket.org/liamstask/goose/lib/goose"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
@@ -38,6 +39,7 @@ type ResponseValues struct {
 }
 
 var arks = make(map[string]fpe.Algorithm)
+var dbConf goose.DBConf
 
 func getValuesFromURLParam(r *http.Request) ([]string, [][]byte, error) {
 	values := r.URL.Query()["q"]
@@ -220,15 +222,15 @@ func APIKeyValid(next http.Handler) http.Handler {
 		key := strings.Trim(r.Header.Get("Authorization"), "Bearer ")
 		if key == "" {
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte("You need a valid token."))
+			w.Write([]byte("You need a valid token in your request."))
 			return
 		}
 
-		db, err := sql.Open("mysql", "/anthem_fpe?parseTime=true")
+		db, err := goose.OpenDBFromDBConf(&dbConf)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
 		defer db.Close()
 
 		var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
@@ -236,7 +238,7 @@ func APIKeyValid(next http.Handler) http.Handler {
 		switch {
 		case err == sql.ErrNoRows:
 			w.WriteHeader(http.StatusForbidden)
-			w.Write([]byte("You need a valid token."))
+			w.Write([]byte("Token could not be found. Are you sure you have the right token?"))
 			return
 		case err != nil:
 			writeError(w, http.StatusInternalServerError, err)
@@ -252,6 +254,9 @@ func writeError(w http.ResponseWriter, status int, err error) {
 }
 
 func main() {
+	conf, _ := goose.NewDBConf("db", "development", "")
+	dbConf = *conf
+	
 	ff1, _ := fpe.NewFF1("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20, 16)
 	arks["ff1"] = &ff1
 	ff3, _ := fpe.NewFF3("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20)

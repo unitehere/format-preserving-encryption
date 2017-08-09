@@ -1,7 +1,7 @@
 -- +goose Up
 CREATE TABLE api_keys (
-  id int NOT NULL AUTO_INCREMENT,
-  value varchar(255) NOT NULL,
+  id INT NOT NULL AUTO_INCREMENT,
+  value VARCHAR(255) NOT NULL,
   PRIMARY KEY (id)
 );
 
