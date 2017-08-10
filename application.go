@@ -1,68 +1,97 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fpe/fpe"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"database/sql"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/goware/cors"
 	"github.com/unrolled/secure"
-	_ "github.com/go-sql-driver/mysql"
 )
 
-// The MessageValues type describes the structure of the body of POST requests and all
-// responses. The structure is json of this structure:
+// The RequestValues type describes the structure of the body of POST requests.
+// The structure is json of this structure:
+// {
+//   "values": ["message", "values"],
+//   "tweaks": ["abcdefgh", "12345678"]
+// }
+type RequestValues struct {
+	Values []string `json:"values"`
+	Tweaks []string `json:"tweaks"`
+}
+
+// The ResponseValues type describes the structure of the all responses.
+// The structure is json of this structure:
 // {
 //   "values": ["message", "values"]
 // }
-type MessageValues struct {
+type ResponseValues struct {
 	Values []string `json:"values"`
 }
 
 var arks = make(map[string]fpe.Algorithm)
 
-func getValuesFromURLParam(r *http.Request) []string {
+func getValuesFromURLParam(r *http.Request) ([]string, [][]byte, error) {
 	values := r.URL.Query()["q"]
 	if len(values) == 1 {
 		values = strings.Split(values[0], ",")
 	}
 
-	return values
+	tweakStrings := r.URL.Query()["tweaks"]
+	if len(tweakStrings) == 1 {
+		tweakStrings = strings.Split(tweakStrings[0], ",")
+	}
+
+	tweaks := make([][]byte, len(tweakStrings))
+	for i := 0; i < len(tweakStrings); i++ {
+		var err error
+		tweaks[i], err = hex.DecodeString(tweakStrings[i])
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return values, tweaks, nil
 }
 
-func getValuesFromBody(r *http.Request) (MessageValues, error) {
+func getValuesFromBody(r *http.Request) (RequestValues, error) {
 	decoder := json.NewDecoder(r.Body)
-	var messageValues MessageValues
-	err := decoder.Decode(&messageValues)
+	var requestValues RequestValues
+	err := decoder.Decode(&requestValues)
 	defer r.Body.Close()
-	return messageValues, err
+	return requestValues, err
 }
 
 // GetEncryptHandler handles requests for GET /v1/ark/{arkname}/encrypt
 // Takes a query parameter 'q' that is a comma separated list of values to encrypt
-// and returns a response body of type MessageValues.
+// and returns a response body of type ResponseValues.
 func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
-	if !apiKeyValid(r) {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("You need a valid token."))
+	ark := arks[chi.URLParam(r, "arkName")]
+	values, tweaks, err := getValuesFromURLParam(r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
 		return
 	}
-	
-	ark := arks[chi.URLParam(r, "arkName")]
-	values := getValuesFromURLParam(r)
-	payload := MessageValues{Values: []string{}}
+	payload := ResponseValues{Values: []string{}}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
-		message, err := ark.Encrypt(string(value), []byte{})
+		tweak := []byte{}
+		if i < len(tweaks) {
+			tweak = tweaks[i]
+		}
+		message, err := ark.Encrypt(string(value), tweak)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Unable to encrypt value: " + value))
+			w.Write([]byte(err.Error()))
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -74,29 +103,32 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostEncryptHandler handles requests for POST /v1/ark/{arkname}/encrypt
-// Takes a json body of structure MessageValues and returns a body of structure
-// MessageValues.
+// Takes a json body of structure RequestValues and returns a body of structure
+// ResponseValues.
 func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
-	if !apiKeyValid(r) {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("You need a valid token."))
-		return
-	}
-
 	ark := arks[chi.URLParam(r, "arkName")]
-	messageValues, err := getValuesFromBody(r)
+	requestValues, err := getValuesFromBody(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Unable to parse values"))
+		w.Write([]byte(err.Error()))
 		return
 	}
-	payload := MessageValues{Values: []string{}}
-	for i := 0; i < len(messageValues.Values); i++ {
-		value := messageValues.Values[i]
-		message, err := ark.Encrypt(string(value), []byte{})
+	payload := ResponseValues{Values: []string{}}
+	for i := 0; i < len(requestValues.Values); i++ {
+		value := requestValues.Values[i]
+		tweak := []byte{}
+		if i < len(requestValues.Tweaks) {
+			tweak, err = hex.DecodeString(requestValues.Tweaks[i])
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+				return
+			}
+		}
+		message, err := ark.Encrypt(string(value), tweak)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Unable to encrypt value: " + value))
+			w.Write([]byte(err.Error()))
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -109,23 +141,26 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetDecryptHandler handles requests for GET /v1/ark/{arkname}/decrypt
 // Takes a query parameter 'q' that is a comma separated list of values to decrypt
-// and returns a response body of type MessageValues.
+// and returns a response body of type ResponseValues.
 func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
-	if !apiKeyValid(r) {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("You need a valid token."))
+	ark := arks[chi.URLParam(r, "arkName")]
+	values, tweaks, err := getValuesFromURLParam(r)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
 		return
 	}
-	
-	ark := arks[chi.URLParam(r, "arkName")]
-	values := getValuesFromURLParam(r)
-	payload := MessageValues{Values: []string{}}
+	payload := ResponseValues{Values: []string{}}
 	for i := 0; i < len(values); i++ {
 		value := values[i]
-		message, err := ark.Decrypt(string(value), []byte{})
+		tweak := []byte{}
+		if i < len(tweaks) {
+			tweak = tweaks[i]
+		}
+		message, err := ark.Decrypt(string(value), tweak)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Unable to decrypt value: " + value))
+			w.Write([]byte(err.Error()))
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -137,29 +172,32 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // PostDecryptHandler handles requests for POST /v1/ark/{arkname}/decrypt
-// Takes a json body of structure MessageValues and returns a body of structure
-// MessageValues.
+// Takes a json body of structure RequestValues and returns a body of structure
+// ResponseValues.
 func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
-	if !apiKeyValid(r) {
-		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("You need a valid token."))
-		return
-	}
-	
 	ark := arks[chi.URLParam(r, "arkName")]
-	messageValues, err := getValuesFromBody(r)
+	requestValues, err := getValuesFromBody(r)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Unable to parse values"))
+		w.Write([]byte(err.Error()))
 		return
 	}
-	payload := MessageValues{Values: []string{}}
-	for i := 0; i < len(messageValues.Values); i++ {
-		value := messageValues.Values[i]
-		message, err := ark.Decrypt(string(value), []byte{})
+	payload := ResponseValues{Values: []string{}}
+	for i := 0; i < len(requestValues.Values); i++ {
+		value := requestValues.Values[i]
+		tweak := []byte{}
+		if i < len(requestValues.Tweaks) {
+			tweak, err = hex.DecodeString(requestValues.Tweaks[i])
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(err.Error()))
+				return
+			}
+		}
+		message, err := ark.Decrypt(string(value), tweak)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte("Unable to decrypt value: " + value))
+			w.Write([]byte(err.Error()))
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -185,25 +223,39 @@ func ArkCtx(next http.Handler) http.Handler {
 	})
 }
 
-func apiKeyValid(r *http.Request) bool {
-	key := strings.Trim(r.Header.Get("Authorization"), "Bearer ")
-	if key == "" {
-		return false
-	}
+// APIKeyValid checks to make sure the provided API key is valid and returns an error
+// otherwise.
+func APIKeyValid(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := strings.Trim(r.Header.Get("Authorization"), "Bearer ")
+		if key == "" {
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("You need a valid token."))
+			return
+		}
 
-	db, err := sql.Open("mysql", "/anthem_fpe?parseTime=true")
-	if err != nil { log.Fatal(err) } // TODO how do we handle this error?
-	defer db.Close()
+		db, err := sql.Open("mysql", "/anthem_fpe?parseTime=true")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		defer db.Close()
 
-	var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
-	err = db.QueryRow("SELECT value FROM api_keys WHERE value=?", key).Scan(&foundKey)
-	switch {
+		var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
+		err = db.QueryRow("SELECT value FROM api_keys WHERE value=?", key).Scan(&foundKey)
+		switch {
 		case err == sql.ErrNoRows:
-			return false
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte("You need a valid token."))
+			return
 		case err != nil:
-			log.Fatal(err)
-	}
-	return true
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func main() {
@@ -238,6 +290,7 @@ func main() {
 
 	r.Route("/v1/ark/{arkName}", func(r chi.Router) {
 		r.Use(ArkCtx)
+		r.Use(APIKeyValid)
 
 		r.Get("/encrypt", GetEncryptHandler)
 		r.Post("/encrypt", PostEncryptHandler)
