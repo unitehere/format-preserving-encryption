@@ -77,8 +77,7 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	values, tweaks, err := getValuesFromURLParam(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	payload := ResponseValues{Values: []string{}}
@@ -90,8 +89,7 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		message, err := ark.Encrypt(string(value), tweak)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -109,8 +107,7 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	requestValues, err := getValuesFromBody(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	payload := ResponseValues{Values: []string{}}
@@ -120,15 +117,13 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 		if i < len(requestValues.Tweaks) {
 			tweak, err = hex.DecodeString(requestValues.Tweaks[i])
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(err.Error()))
+				writeError(w, http.StatusBadRequest, err)
 				return
 			}
 		}
 		message, err := ark.Encrypt(string(value), tweak)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -146,8 +141,7 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	values, tweaks, err := getValuesFromURLParam(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	payload := ResponseValues{Values: []string{}}
@@ -159,8 +153,7 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		message, err := ark.Decrypt(string(value), tweak)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -178,8 +171,7 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	ark := arks[chi.URLParam(r, "arkName")]
 	requestValues, err := getValuesFromBody(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
+		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	payload := ResponseValues{Values: []string{}}
@@ -189,15 +181,13 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 		if i < len(requestValues.Tweaks) {
 			tweak, err = hex.DecodeString(requestValues.Tweaks[i])
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(err.Error()))
+				writeError(w, http.StatusBadRequest, err)
 				return
 			}
 		}
 		message, err := ark.Decrypt(string(value), tweak)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusBadRequest, err)
 			return
 		}
 		payload.Values = append(payload.Values, strings.ToUpper(message))
@@ -236,8 +226,7 @@ func APIKeyValid(next http.Handler) http.Handler {
 
 		db, err := sql.Open("mysql", "/anthem_fpe?parseTime=true")
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		defer db.Close()
@@ -250,12 +239,16 @@ func APIKeyValid(next http.Handler) http.Handler {
 			w.Write([]byte("You need a valid token."))
 			return
 		case err != nil:
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func writeError(w http.ResponseWriter, status int, err error) {
+	w.WriteHeader(status)
+	w.Write([]byte(err.Error()))
 }
 
 func main() {
