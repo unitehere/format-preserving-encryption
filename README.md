@@ -6,18 +6,25 @@ Format preserving encryption implementation of [NIST SP 800-38G](http://dx.doi.o
 1. Get [Govendor](https://github.com/kardianos/govendor)
 2. Do `govendor init && govendor add +external`. You now have the required packages in `application.go` in your `/vendor` dir.
 3. Set up a MYSQL database. Currently using a database name of `anthem_fpe`.
+4. Run the instructions under Database Migrations and migrate your db
+5. Queries you should probably run to seed your development db:
+    - add the ark bestArk to your table
+
+    `insert into arks values ("bestArk", "ff1", "2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20 ,16)`
+    - add an api key of your choosing, using 12345 as an example
+    
+    `INSERT INTO api_keys SET value="12345"`
 
 ### Endpoints
 All endpoints require a `Authorization` header with a api key.
-Note, you need to add a test API key in your `apy_keys` table in `anthem_fpe` database to work. eg `INSERT INTO api_keys SET value="SOMEAPIKEY"`
 
 #### GET/POST encrypt
 GET uses the `q` param, eg
 
-`localhost:1234/v1/ark/ff1/encrypt?q=sometext`
+`localhost:1234/v1/ark/bestArk/encrypt?q=sometext`
 
 POST uses a JSON in the body of your call, eg
-`localhost:1234/v1/ark/ff1/encrypt`
+`localhost:1234/v1/ark/bestArk/encrypt`
 
 ```
 {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -205,7 +206,7 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 func ArkCtx(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		arkName := chi.URLParam(r, "arkName")
-		_, found := arks[arkName]
+		found := findAlgorithm(arkName)
 		if found {
 			next.ServeHTTP(w, r)
 		} else {
@@ -252,15 +253,47 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	w.WriteHeader(status)
 	w.Write([]byte(err.Error()))
 }
+// check arks to see if arkName already in memory, if not check db
+// every db check will populate ark[arkName] if found in db.
+// if not found in db, return false
+func findAlgorithm(arkName string) bool {
+	_, found := arks[arkName]
+	if found {
+		return true
+	}
+
+	db, err := goose.OpenDBFromDBConf(&dbConf)
+	if err != nil { } // handle this error
+	defer db.Close()
+
+	var (name string; algorithmType string; keyString string; radix int;
+			 minMessageLength int; maxMessageLength int; maxTweakLength int)
+
+	err = db.QueryRow("SELECT * FROM arks WHERE ark_name=?", arkName).Scan(
+		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
+		&maxTweakLength)
+	if err != nil { return false }
+	
+	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+
+	if (strings.ToLower(algorithmType) == "ff1") {
+		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		arks[name] = &newAlgorithm
+	}else if (strings.ToLower(algorithmType) == "ff3") {
+		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		arks[name] = &newAlgorithm
+	}
+
+	return true
+}
+
+func updateArks() {
+
+}
 
 func main() {
 	conf, _ := goose.NewDBConf("db", "development", "")
 	dbConf = *conf
-	
-	ff1, _ := fpe.NewFF1("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20, 16)
-	arks["ff1"] = &ff1
-	ff3, _ := fpe.NewFF3("2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20)
-	arks["ff3"] = &ff3
 
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:        true,
