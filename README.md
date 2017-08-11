@@ -41,6 +41,6 @@ Works the same way as encrypt, with different endpoint name.
 Get the correct goose:
 `go get bitbucket.org/liamstask/goose/cmd/goose`
 
-To configure, edit `db/dbconf.yml`
+To configure, edit `db/dbconf.yml`. If you don't yet have a `dbconf.yml`, copy `dbconf.yml.example` to `dbconf.yml` and make the necessary edits.
 
 To migrate use `goose up`
