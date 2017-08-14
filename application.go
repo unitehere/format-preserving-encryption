@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fpe/fpe"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"io/ioutil"
 	
 	"bitbucket.org/liamstask/goose/lib/goose"
 	"github.com/go-chi/chi"
@@ -17,6 +19,10 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goware/cors"
 	"github.com/unrolled/secure"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 )
 
 // The RequestValues type describes the structure of the body of POST requests.
@@ -273,7 +279,7 @@ func findAlgorithm(arkName string) bool {
 		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
 		&maxTweakLength)
 	if err != nil { return false }
-	
+
 	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
 	if (strings.ToLower(algorithmType) == "ff1") {
@@ -294,6 +300,38 @@ func updateArks() {
 func main() {
 	conf, _ := goose.NewDBConf("db", "development", "")
 	dbConf = *conf
+
+	kmsKeyARN := "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
+  kmsClient := kms.New(session.New(&aws.Config{
+    Region: aws.String("us-west-2"),
+  }))
+
+	serviceKeyBytes, err := ioutil.ReadFile("/Users/anthemengineeringmacbookpro5/test")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serviceKeyString := string(serviceKeyBytes)
+	serviceKeyStringDecoded, err := base64.StdEncoding.DecodeString(serviceKeyString)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	params := &kms.decryptInput{
+		CiphertextBlob: serviceKeyStringDecoded,
+		EncryptionContext: {
+			KeyId: "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
+		},
+		GrantTokens: [ "" ]
+	}
+
+	decryptedServiceKey, err := kmsClient.Decrypt(params)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Print(serviceKeyStringDecoded)
+	log.Print(decryptedServiceKey)
 
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:        true,
