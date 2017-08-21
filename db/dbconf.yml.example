@@ -1,4 +1,8 @@
 development:
   driver: mysql
-  open: root:@tcp(localhost:3306)/anthem_fpe?parseTime=true
+  open: root:root@tcp(localhost:3306)/fpe?parseTime=true
   # username:password@tcp(host:port)/database
+
+production:
+  driver: mysql
+  open: root:root@tcp(example.com:3306)/fpe?parseTime=true
