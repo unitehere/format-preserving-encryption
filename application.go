@@ -12,7 +12,8 @@ import (
 	"os"
 	"strings"
 	"io/ioutil"
-	
+	"path/filepath"
+
 	"bitbucket.org/liamstask/goose/lib/goose"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -306,16 +307,17 @@ func main() {
     Region: aws.String("us-west-2"),
   }))
 
-	serviceKeyBytes, err := ioutil.ReadFile("/Users/anthemengineeringmacbookpro5/test")
+	absPath, err := filepath.Abs("./keyfile")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serviceKeyBytes, err := ioutil.ReadFile(absPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	serviceKeyString := string(serviceKeyBytes)
-	serviceKeyStringDecoded, err := base64.StdEncoding.DecodeString(serviceKeyString)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	params := &kms.decryptInput{
 		CiphertextBlob: serviceKeyStringDecoded,
@@ -330,8 +332,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Print(serviceKeyStringDecoded)
-	log.Print(decryptedServiceKey)
+	decryptedServiceKeyDecoded, err := base64.StdEncoding.DecodeString(decryptedServiceKey)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// log.Print(decryptedServiceKey)
+	// log.Print(decryptedServiceKeyDecoded)
 
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:        true,
