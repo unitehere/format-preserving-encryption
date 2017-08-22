@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/kms"
 )
 
@@ -303,8 +304,9 @@ func main() {
 	dbConf = *conf
 
 	kmsKeyARN := "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
-  kmsClient := kms.New(session.New(&aws.Config{
+  kmsClient, err := kms.New(session.New(&aws.Config{
     Region: aws.String("us-west-2"),
+		Credentials: credentials.NewSharedCredentials("", "format-preserving-encryption"),
   }))
 
 	absPath, err := filepath.Abs("./keyfile")
@@ -323,8 +325,7 @@ func main() {
 		CiphertextBlob: serviceKeyStringDecoded,
 		EncryptionContext: {
 			KeyId: "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
-		},
-		GrantTokens: [ "" ]
+		}
 	}
 
 	decryptedServiceKey, err := kmsClient.Decrypt(params)
