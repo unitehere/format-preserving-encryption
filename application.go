@@ -322,7 +322,7 @@ func main() {
 	serviceKeyString := string(serviceKeyBytes)
 
 	params := &kms.decryptInput{
-		CiphertextBlob: serviceKeyStringDecoded,
+		CiphertextBlob: serviceKeyString,
 		EncryptionContext: {
 			KeyId: "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
 		}
