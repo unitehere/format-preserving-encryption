@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fpe/fpe"
+  "fpe/fpe"
 	"log"
 	"net/http"
 	"os"
@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/service/kms"
 )
-
+// "github.com/fpe"
 // The RequestValues type describes the structure of the body of POST requests.
 // The structure is json of this structure:
 // {
@@ -289,7 +289,7 @@ func findAlgorithm(arkName string) bool {
 		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}else if (strings.ToLower(algorithmType) == "ff3") {
-		newAlgorithm, _ := fpe.NewFF3(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF3(decryptedKey, radix, minMessageLength, maxMessageLength)
 		arks[name] = &newAlgorithm
 	}
 
@@ -305,7 +305,7 @@ func main() {
 	dbConf = *conf
 
 	kmsKeyARN := "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
-  kmsClient, err := kms.New(session.New(&aws.Config{
+  kmsClient := kms.New(session.New(&aws.Config{
     Region: aws.String("us-west-2"),
 		Credentials: credentials.NewSharedCredentials("", "format-preserving-encryption"),
   }))
@@ -320,26 +320,25 @@ func main() {
 		log.Fatal(err)
 	}
 
-	serviceKeyString := string(serviceKeyBytes)
-
-	params := &kms.decryptInput{
-		CiphertextBlob: serviceKeyString,
-		EncryptionContext: {
-			KeyId: "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
-		}
+	params := &kms.DecryptInput{
+		CiphertextBlob: serviceKeyBytes,
+		EncryptionContext: map[string]*string {
+			"KeyId": &kmsKeyARN,
+		},
 	}
 
 	decryptedServiceKey, err := kmsClient.Decrypt(params)
 	if err != nil {
 		log.Fatal(err)
 	}
+	decryptedServiceKeyString := decryptedServiceKey.GoString()
 
-	decryptedServiceKeyDecoded, err := base64.StdEncoding.DecodeString(decryptedServiceKey)
+	decryptedServiceKeyDecoded, err := base64.StdEncoding.DecodeString(decryptedServiceKeyString)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	decryptedKey = *decryptedServiceKeyDecoded
+	decryptedKey = string(decryptedServiceKeyDecoded)
 	// log.Print(decryptedServiceKey)
 	// log.Print(decryptedServiceKeyDecoded)
 
