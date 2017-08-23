@@ -1,32 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-  "fpe/fpe"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
-	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"bitbucket.org/liamstask/goose/lib/goose"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goware/cors"
+	"github.com/unitehere/format-preserving-encryption/fpe"
 	"github.com/unrolled/secure"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
 )
-// "github.com/fpe"
+
 // The RequestValues type describes the structure of the body of POST requests.
 // The structure is json of this structure:
 // {
@@ -49,7 +48,7 @@ type ResponseValues struct {
 
 var arks = make(map[string]fpe.Algorithm)
 var dbConf goose.DBConf
-var decryptedKey string
+var serviceKey string
 
 func getValuesFromURLParam(r *http.Request) ([]string, [][]byte, error) {
 	values := r.URL.Query()["q"]
@@ -238,9 +237,9 @@ func APIKeyValid(next http.Handler) http.Handler {
 
 		db, err := goose.OpenDBFromDBConf(&dbConf)
 		if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 		defer db.Close()
 
 		var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
@@ -262,6 +261,7 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	w.WriteHeader(status)
 	w.Write([]byte(err.Error()))
 }
+
 // check arks to see if arkName already in memory, if not check db
 // every db check will populate ark[arkName] if found in db.
 // if not found in db, return false
@@ -272,24 +272,35 @@ func findAlgorithm(arkName string) bool {
 	}
 
 	db, err := goose.OpenDBFromDBConf(&dbConf)
-	if err != nil { } // handle this error
+	if err != nil {
+	} // handle this error
 	defer db.Close()
 
-	var (name string; algorithmType string; keyString string; radix int;
-			 minMessageLength int; maxMessageLength int; maxTweakLength int)
+	var (
+		name             string
+		algorithmType    string
+		keyString        string
+		radix            int
+		minMessageLength int
+		maxMessageLength int
+		maxTweakLength   int
+	)
 
 	err = db.QueryRow("SELECT * FROM arks WHERE ark_name=?", arkName).Scan(
 		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
 		&maxTweakLength)
-	if err != nil { return false }
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
 
 	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
-	if (strings.ToLower(algorithmType) == "ff1") {
-		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
+	if strings.ToLower(algorithmType) == "ff1" {
+		newAlgorithm, _ := fpe.NewFF1(serviceKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
-	}else if (strings.ToLower(algorithmType) == "ff3") {
-		newAlgorithm, _ := fpe.NewFF3(decryptedKey, radix, minMessageLength, maxMessageLength)
+	} else if strings.ToLower(algorithmType) == "ff3" {
+		newAlgorithm, _ := fpe.NewFF3(serviceKey, radix, minMessageLength, maxMessageLength)
 		arks[name] = &newAlgorithm
 	}
 
@@ -304,43 +315,30 @@ func main() {
 	conf, _ := goose.NewDBConf("db", "development", "")
 	dbConf = *conf
 
-	kmsKeyARN := "arn:aws:kms:us-west-2:302756457565:key/24e23158-2ba8-4f00-9a9a-94cae6018ca0"
-  kmsClient := kms.New(session.New(&aws.Config{
-    Region: aws.String("us-west-2"),
+	kmsClient := kms.New(session.New(&aws.Config{
+		Region:      aws.String("us-west-2"),
 		Credentials: credentials.NewSharedCredentials("", "format-preserving-encryption"),
-  }))
+	}))
 
 	absPath, err := filepath.Abs("./keyfile")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	serviceKeyBytes, err := ioutil.ReadFile(absPath)
+	encryptedKey, err := ioutil.ReadFile(absPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	params := &kms.DecryptInput{
-		CiphertextBlob: serviceKeyBytes,
-		EncryptionContext: map[string]*string {
-			"KeyId": &kmsKeyARN,
-		},
+		CiphertextBlob: encryptedKey,
 	}
 
-	decryptedServiceKey, err := kmsClient.Decrypt(params)
+	decryptOutput, err := kmsClient.Decrypt(params)
 	if err != nil {
 		log.Fatal(err)
 	}
-	decryptedServiceKeyString := decryptedServiceKey.GoString()
-
-	decryptedServiceKeyDecoded, err := base64.StdEncoding.DecodeString(decryptedServiceKeyString)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	decryptedKey = string(decryptedServiceKeyDecoded)
-	// log.Print(decryptedServiceKey)
-	// log.Print(decryptedServiceKeyDecoded)
+	serviceKey = hex.EncodeToString(decryptOutput.Plaintext)
 
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:        true,
