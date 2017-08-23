@@ -49,6 +49,7 @@ type ResponseValues struct {
 
 var arks = make(map[string]fpe.Algorithm)
 var dbConf goose.DBConf
+var decryptedKey string
 
 func getValuesFromURLParam(r *http.Request) ([]string, [][]byte, error) {
 	values := r.URL.Query()["q"]
@@ -285,10 +286,10 @@ func findAlgorithm(arkName string) bool {
 	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
 	if (strings.ToLower(algorithmType) == "ff1") {
-		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}else if (strings.ToLower(algorithmType) == "ff3") {
-		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}
 
@@ -338,6 +339,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	decryptedKey = *decryptedServiceKeyDecoded
 	// log.Print(decryptedServiceKey)
 	// log.Print(decryptedServiceKeyDecoded)
 
