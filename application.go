@@ -289,7 +289,7 @@ func findAlgorithm(arkName string) bool {
 		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}else if (strings.ToLower(algorithmType) == "ff3") {
-		newAlgorithm, _ := fpe.NewFF1(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF3(decryptedKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}
 
