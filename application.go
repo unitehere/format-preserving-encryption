@@ -1,21 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fpe/fpe"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	
+
 	"bitbucket.org/liamstask/goose/lib/goose"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/goware/cors"
+	"github.com/unitehere/format-preserving-encryption/fpe"
 	"github.com/unrolled/secure"
 )
 
@@ -229,9 +229,9 @@ func APIKeyValid(next http.Handler) http.Handler {
 
 		db, err := goose.OpenDBFromDBConf(&dbConf)
 		if err != nil {
-				writeError(w, http.StatusInternalServerError, err)
-				return
-			}
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
 		defer db.Close()
 
 		var foundKey string // foundKey doesn't do anything atm, Scan requires an arg
@@ -253,6 +253,7 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	w.WriteHeader(status)
 	w.Write([]byte(err.Error()))
 }
+
 // check arks to see if arkName already in memory, if not check db
 // every db check will populate ark[arkName] if found in db.
 // if not found in db, return false
@@ -263,23 +264,33 @@ func findAlgorithm(arkName string) bool {
 	}
 
 	db, err := goose.OpenDBFromDBConf(&dbConf)
-	if err != nil { } // handle this error
+	if err != nil {
+	} // handle this error
 	defer db.Close()
 
-	var (name string; algorithmType string; keyString string; radix int;
-			 minMessageLength int; maxMessageLength int; maxTweakLength int)
+	var (
+		name             string
+		algorithmType    string
+		keyString        string
+		radix            int
+		minMessageLength int
+		maxMessageLength int
+		maxTweakLength   int
+	)
 
 	err = db.QueryRow("SELECT * FROM arks WHERE ark_name=?", arkName).Scan(
 		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
 		&maxTweakLength)
-	if err != nil { return false }
-	
+	if err != nil {
+		return false
+	}
+
 	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
-	if (strings.ToLower(algorithmType) == "ff1") {
+	if strings.ToLower(algorithmType) == "ff1" {
 		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
-	}else if (strings.ToLower(algorithmType) == "ff3") {
+	} else if strings.ToLower(algorithmType) == "ff3" {
 		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	}
