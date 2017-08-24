@@ -5,10 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-<<<<<<< HEAD
-=======
 	"io/ioutil"
->>>>>>> d3cd23b... Fix Key Decryption
 	"log"
 	"net/http"
 	"os"
