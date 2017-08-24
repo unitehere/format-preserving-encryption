@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"bitbucket.org/liamstask/goose/lib/goose"
@@ -17,6 +19,11 @@ import (
 	"github.com/goware/cors"
 	"github.com/unitehere/format-preserving-encryption/fpe"
 	"github.com/unrolled/secure"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
 )
 
 // The RequestValues type describes the structure of the body of POST requests.
@@ -41,6 +48,7 @@ type ResponseValues struct {
 
 var arks = make(map[string]fpe.Algorithm)
 var dbConf goose.DBConf
+var serviceKey string
 
 func getValuesFromURLParam(r *http.Request) ([]string, [][]byte, error) {
 	values := r.URL.Query()["q"]
@@ -282,16 +290,17 @@ func findAlgorithm(arkName string) bool {
 		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
 		&maxTweakLength)
 	if err != nil {
+		fmt.Println(err)
 		return false
 	}
 
 	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
 	if strings.ToLower(algorithmType) == "ff1" {
-		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF1(serviceKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
 		arks[name] = &newAlgorithm
 	} else if strings.ToLower(algorithmType) == "ff3" {
-		newAlgorithm, _ := fpe.NewFF1(keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
+		newAlgorithm, _ := fpe.NewFF3(serviceKey, radix, minMessageLength, maxMessageLength)
 		arks[name] = &newAlgorithm
 	}
 
@@ -305,6 +314,31 @@ func updateArks() {
 func main() {
 	conf, _ := goose.NewDBConf("db", "development", "")
 	dbConf = *conf
+
+	kmsClient := kms.New(session.New(&aws.Config{
+		Region:      aws.String("us-west-2"),
+		Credentials: credentials.NewSharedCredentials("", "format-preserving-encryption"),
+	}))
+
+	absPath, err := filepath.Abs("./keyfile")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	encryptedKey, err := ioutil.ReadFile(absPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	params := &kms.DecryptInput{
+		CiphertextBlob: encryptedKey,
+	}
+
+	decryptOutput, err := kmsClient.Decrypt(params)
+	if err != nil {
+		log.Fatal(err)
+	}
+	serviceKey = hex.EncodeToString(decryptOutput.Plaintext)
 
 	secureMiddleware := secure.New(secure.Options{
 		FrameDeny:        true,
