@@ -7,21 +7,23 @@ For local development:
 1. Open a terminal window and run the AWS CLI setup. Use your personal Access ID
    and personal Access Secret when prompted
 2. Navigate to the `.aws` folder within the home directory and open `credentials`
-3. The first 3 lines should remain as the same, and the rest of the file should look as follows:
-[default]
-aws_access_key_id = YYYYYYYYYYYYYYYYYYYY
-aws_secret_access_key = YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
+3. Make sure you have the `format-preserving-encryption` profile credentials configured:
 
+```
 [format-preserving-encryption]
 aws_access_key_id = XXXXXXXXXXXXXXXXXXXX
 aws_secret_access_key = XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
 
 4. Save and close the file.
+5. Open the `config` file in the same `.aws` directory.
+6. Make sure you have the `format-preserving-encryption` profile configured:
 
-For production environment:
-1. Open the `credentials.example` file and enter the production access keys id and secret access key into both profiles.
-2. Open terminal window and create folder `.aws` at home directory (if the folder does not already exist)
-3. Copy the modified `credentials.example` file into the `.aws` folder, and rename the file `credentials`.
+```
+[profile format-preserving-encryption]
+output = json
+region = us-west-2
+```
 
 ### Getting Started
 1. Get [Govendor](https://github.com/kardianos/govendor)

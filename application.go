@@ -209,6 +209,13 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// Health is just an endpoint that returns an empty response
+func Health(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	return
+}
+
 // ArkCtx checks to make sure the arkName URL parameter is valid ARK name and returns
 // a 404 if it cannot be found.
 func ArkCtx(next http.Handler) http.Handler {
@@ -312,12 +319,19 @@ func updateArks() {
 }
 
 func main() {
-	conf, _ := goose.NewDBConf("db", "development", "")
+	awsCredentials := credentials.NewEnvCredentials()
+	conf, _ := goose.NewDBConf("db", "production", "")
 	dbConf = *conf
+	_, err := awsCredentials.Get()
+	if err != nil {
+		awsCredentials = credentials.NewSharedCredentials("", "format-preserving-encryption")
+		conf, _ = goose.NewDBConf("db", "development", "")
+		dbConf = *conf
+	}
 
 	kmsClient := kms.New(session.New(&aws.Config{
 		Region:      aws.String("us-west-2"),
-		Credentials: credentials.NewSharedCredentials("", "format-preserving-encryption"),
+		Credentials: awsCredentials,
 	}))
 
 	absPath, err := filepath.Abs("./keyfile")
@@ -373,6 +387,8 @@ func main() {
 		r.Get("/decrypt", GetDecryptHandler)
 		r.Post("/decrypt", PostDecryptHandler)
 	})
+
+	r.Get("/health", Health)
 
 	f, _ := os.Create("/var/log/golang/fpe-server.log")
 	defer f.Close()
