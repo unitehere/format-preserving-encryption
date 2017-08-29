@@ -67,3 +67,15 @@ Get the correct goose:
 To configure, edit `db/dbconf.yml`. If you don't yet have a `dbconf.yml`, copy `dbconf.yml.example` to `dbconf.yml` and make the necessary edits.
 
 To migrate use `goose up`
+
+### Service Deployment
+To deploy the application using Elastic Beanstalk for the first time, you will need to run:
+`eb init`
+
+The region you want to deploy to is us-west-2, and the application you want to deploy to is `uh-fpe`.
+
+In order to deploy, make sure you have `db/dbconf.yml` correctly configured and have a `production` environment set up.
+
+Before deploying, run `goose -env production up`.
+
+To deploy, run `eb deploy`.
