@@ -33,7 +33,7 @@ region = us-west-2
 5. Queries you should probably run to seed your development db:
     - add the ark bestArk to your table
 
-    `insert into arks values ("bestArk", "ff1", "2B7E151628AED2A6ABF7158809CF4F3C", 36, 2, 20 ,16)`
+    `insert into arks values ("bestArk", "ff1", 36, 2, 20 ,16)`
     - add an api key of your choosing, using 12345 as an example
 
     `INSERT INTO api_keys SET value="12345"`

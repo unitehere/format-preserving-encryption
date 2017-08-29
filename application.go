@@ -286,7 +286,6 @@ func findAlgorithm(arkName string) bool {
 	var (
 		name             string
 		algorithmType    string
-		keyString        string
 		radix            int
 		minMessageLength int
 		maxMessageLength int
@@ -294,14 +293,12 @@ func findAlgorithm(arkName string) bool {
 	)
 
 	err = db.QueryRow("SELECT * FROM arks WHERE ark_name=?", arkName).Scan(
-		&name, &algorithmType, &keyString, &radix, &minMessageLength, &maxMessageLength,
+		&name, &algorithmType, &radix, &minMessageLength, &maxMessageLength,
 		&maxTweakLength)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
-
-	fmt.Println(name, algorithmType, keyString, radix, minMessageLength, maxMessageLength, maxTweakLength)
 
 	if strings.ToLower(algorithmType) == "ff1" {
 		newAlgorithm, _ := fpe.NewFF1(serviceKey, radix, minMessageLength, maxMessageLength, maxTweakLength)
