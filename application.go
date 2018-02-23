@@ -98,7 +98,10 @@ func GetEncryptHandler(w http.ResponseWriter, r *http.Request) {
 		if i < len(tweaks) {
 			tweak = tweaks[i]
 		}
-		message, err := ark.Encrypt(string(value), tweak)
+		message := ""
+		if strings.TrimSpace(string(value)) != "" {
+			message, err = ark.Encrypt(string(value), tweak)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
@@ -132,7 +135,10 @@ func PostEncryptHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		message, err := ark.Encrypt(string(value), tweak)
+		message := ""
+		if strings.TrimSpace(string(value)) != "" {
+			message, err = ark.Encrypt(string(value), tweak)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
@@ -162,7 +168,10 @@ func GetDecryptHandler(w http.ResponseWriter, r *http.Request) {
 		if i < len(tweaks) {
 			tweak = tweaks[i]
 		}
-		message, err := ark.Decrypt(string(value), tweak)
+		message := ""
+		if strings.TrimSpace(string(value)) != "" {
+			message, err = ark.Decrypt(string(value), tweak)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
@@ -196,7 +205,10 @@ func PostDecryptHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		message, err := ark.Decrypt(string(value), tweak)
+		message := ""
+		if strings.TrimSpace(string(value)) != "" {
+			message, err = ark.Decrypt(string(value), tweak)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
