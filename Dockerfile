@@ -1,5 +1,10 @@
-FROM golang:1.8.3-onbuild
+FROM golang:latest
 
-RUN go get bitbucket.org/liamstask/goose/cmd/goose
+WORKDIR /var/app/current
+COPY . .
+
+RUN go install bitbucket.org/liamstask/goose/cmd/goose@latest
 
 EXPOSE 80
+
+CMD ["go", "run", "application.go"]

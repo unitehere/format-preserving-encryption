@@ -61,8 +61,11 @@ POST uses a JSON in the body of your call, eg
 Works the same way as encrypt, with different endpoint name.
 
 ### Database Migrations
-Get the correct goose:
-`go get bitbucket.org/liamstask/goose/cmd/goose`
+Install go:
+`brew install go`
+
+Install goose:
+`go install bitbucket.org/liamstask/goose/cmd/goose@latest`
 
 To configure, edit `db/dbconf.yml`. If you don't yet have a `dbconf.yml`, copy `dbconf.yml.example` to `dbconf.yml` and make the necessary edits.
 
