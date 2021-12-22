@@ -16,7 +16,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/goware/cors"
+	"github.com/go-chi/cors"
 	"github.com/unitehere/format-preserving-encryption/fpe"
 	"github.com/unrolled/secure"
 
